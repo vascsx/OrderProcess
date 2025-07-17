@@ -1,4 +1,4 @@
-using OrderAPI;
+using OrderAPI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 

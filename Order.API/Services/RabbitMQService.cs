@@ -1,11 +1,13 @@
 ﻿
+using System.Data.Common;
+using System.Runtime;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Connections;
 using OrderAPI.Models;
 using RabbitMQ.Client;
 
-namespace OrderAPI
+namespace OrderAPI.Services
 {
     public interface IRabbitMQService
     {
@@ -14,11 +16,20 @@ namespace OrderAPI
 
     public class RabbitMQService : IRabbitMQService
     {
+        private readonly RabbitMQSettings _settings;
+        private IConnection _connection;
+
         public void Publish(Order order)
         {
-            var factory = new ConnectionFactory() { HostName = "localhost" };
-            using var connection = factory.CreateConnection();
-            using var channel = connection.CreateModel();
+
+            var factory = new ConnectionFactory
+            {
+                HostName = _settings.HostName,
+                UserName = _settings.UserName,
+                Password = _settings.Password
+            };
+            _connection = factory.CreateConnection();
+            using var channel = _connection.CreateModel();
 
             channel.QueueDeclare(queue: "orders", durable: false, exclusive: false, autoDelete: false, arguments: null);
 

@@ -1,10 +1,11 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using OrderAPI.Models;
+using OrderAPI.Services;
 
 namespace OrderAPI.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("[controller]")]
     public class OrderController : ControllerBase
     {
         private readonly IRabbitMQService _rabbitMQService;
