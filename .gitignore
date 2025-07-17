@@ -1,0 +1,78 @@
+## Ignore para projetos .NET
+
+# Build results
+bin/
+obj/
+out/
+
+# Arquivos de log
+*.log
+
+# Configurações de usuário do Visual Studio
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Configurações específicas da IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Arquivos de pacotes
+*.nupkg
+*.snupkg
+packages/
+.nuget/
+
+# Arquivos de dependências geradas
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Resultados de testes
+TestResults/
+*.TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# Cache do dotnet CLI
+**/obj/project.assets.json
+**/obj/project.nuget.cache
+
+# Arquivos de publicação
+publish/
+*.dbmdl
+
+# Secretos e ambientes
+.env
+*.env.*
+
+# Docker
+**/Dockerfile
+docker-compose.override.yml
+docker-compose.*.yml
+
+# Rider
+.idea/
+*.sln.iml
+
+# Arquivos temporários do sistema
+*.tmp
+*.bak
+*.swp
+*~$*
+Thumbs.db
+Desktop.ini
+
+# MacOS
+.DS_Store
+
+# Linux
+*.swp
+
+.vs/
+
+# Windows
+ehthumbs.db
