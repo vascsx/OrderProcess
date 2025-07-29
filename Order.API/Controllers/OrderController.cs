@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using OrderAPI.Enum;
 using OrderAPI.Models;
-using OrderAPI.Services;
 
 namespace OrderAPI.Controllers
 {
@@ -20,6 +20,8 @@ namespace OrderAPI.Controllers
         {
             var validationResult = ValidateOrder(order);
 
+            order.Status = OrderStatus.Created;
+
             if (validationResult != null)
                 return BadRequest(new { message = validationResult });
 
@@ -38,14 +40,11 @@ namespace OrderAPI.Controllers
             if (order == null)
                 return "O corpo da requisição está vazio.";
 
-            if (string.IsNullOrWhiteSpace(order.OrderId))
-                return "O campo 'OrderId' é obrigatório.";
+            if (string.IsNullOrWhiteSpace(order.Customer))
+                return "O campo 'Customer' é obrigatório.";
 
-            if (string.IsNullOrWhiteSpace(order.Product))
-                return "O campo 'Product' é obrigatório.";
-
-            if (order.Quantity <= 0)
-                return "A quantidade deve ser maior que zero.";
+            if (order.Value <= 0)
+                return "O valor deve ser maior que zero.";
 
             return null;
         }
