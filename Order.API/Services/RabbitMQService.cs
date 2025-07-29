@@ -27,14 +27,21 @@ namespace OrderAPI.Services
 
         public void Publish(Order order)
         {
-            using var channel = _connection.CreateModel();
+            try
+            {
+                using var channel = _connection.CreateModel();
 
-            channel.QueueDeclare(queue: _settings.QueueName, durable: false, exclusive: false, autoDelete: false, arguments: null);
+                channel.QueueDeclare(queue: _settings.QueueName, durable: false, exclusive: false, autoDelete: false, arguments: null);
 
-            var json = JsonSerializer.Serialize(order);
-            var body = Encoding.UTF8.GetBytes(json);
+                var json = JsonSerializer.Serialize(order);
+                var body = Encoding.UTF8.GetBytes(json);
 
-            channel.BasicPublish(exchange: "", routingKey: _settings.QueueName, body: body);
+                channel.BasicPublish(exchange: "", routingKey: _settings.QueueName, body: body);
+
+            } catch (Exception ex)
+            {
+                throw new Exception("Erro ao publicar a mensagem no RabbitMQ.", ex);
+            }
         }
     }
 }
