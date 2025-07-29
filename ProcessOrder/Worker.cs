@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ProcessOrder.Models;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -12,16 +13,16 @@ namespace ProcessOrder
     public class Worker : BackgroundService
     {
         private readonly ILogger<Worker> _logger;
+        private readonly RabbitMQSettings _settings;
         private IConnection _connection;
         private IModel _channel;
-        private readonly RabbitMQSettings _settings;
 
-
-        public Worker(ILogger<Worker> logger)
+        public Worker(ILogger<Worker> logger, IOptions<RabbitMQSettings> options)
         {
             _logger = logger;
+            _settings = options.Value;
 
-            var factory = new ConnectionFactory
+            var factory = new ConnectionFactory()
             {
                 HostName = _settings.HostName,
                 UserName = _settings.UserName,
@@ -30,12 +31,6 @@ namespace ProcessOrder
 
             _connection = factory.CreateConnection();
             _channel = _connection.CreateModel();
-
-            _channel.QueueDeclare(queue: "orderQueue",
-                                  durable: true,
-                                  exclusive: false,
-                                  autoDelete: false,
-                                  arguments: null);
         }
 
         protected override Task ExecuteAsync(CancellationToken stoppingToken)
@@ -51,7 +46,7 @@ namespace ProcessOrder
 
                     var order = JsonSerializer.Deserialize<Order>(message);
 
-                    _logger.LogInformation($"Pedido recebido: ID={order.OrderId}, Produto={order.Product}, Quantidade={order.Quantity}");
+                    _logger.LogInformation($"Pedido recebido: ID={order.OrderId}, Customer={order.Customer}, Value={order.Value}");
 
                     _channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);
                 }
@@ -62,8 +57,8 @@ namespace ProcessOrder
                 }
             };
 
-            _channel.BasicConsume(queue: "orderQueue",
-                                  autoAck: false, 
+            _channel.BasicConsume(queue: _settings.QueueName,
+                                  autoAck: false,
                                   consumer: consumer);
 
             return Task.CompletedTask;
