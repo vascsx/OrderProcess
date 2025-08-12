@@ -31,12 +31,13 @@ namespace OrderAPI.Controllers
         {
             var order = new Order
             {
-                Customer = request.Customer,
+                CustomerName = request.Customer,
                 Value = request.Value,
-                Status = OrderStatus.Created,
+                OrderStatus = OrderStatus.Created,
             };
 
             var validationResult = ValidateOrder(order);
+
             if (validationResult != null)
                 return BadRequest(new { message = validationResult });
 
@@ -47,7 +48,7 @@ namespace OrderAPI.Controllers
 
                 _rabbitMQService.Publish(order);
 
-                _logger.LogInformation($"Pedido {order.OrderId} criado com sucesso");
+                _logger.LogInformation($"Pedido {order.Id} criado com sucesso");
             }
             catch (Exception ex)
             {
@@ -58,7 +59,7 @@ namespace OrderAPI.Controllers
             return Ok(new
             {
                 message = "Pedido criado com sucesso!",
-                orderId = order.OrderId
+                orderId = order.Id
             });
         }
 
@@ -67,7 +68,7 @@ namespace OrderAPI.Controllers
             if (order == null)
                 return "O corpo da requisição está vazio.";
 
-            if (string.IsNullOrWhiteSpace(order.Customer))
+            if (string.IsNullOrWhiteSpace(order.CustomerName))
                 return "O campo 'Customer' é obrigatório.";
 
             if (order.Value <= 0)
