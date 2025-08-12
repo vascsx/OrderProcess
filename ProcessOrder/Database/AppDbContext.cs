@@ -11,6 +11,6 @@ namespace ProcessOrder.DataBase
         {
         }
 
-        public DbSet<OrderLog> OrderLogs { get; set; }
+        public DbSet<Order> Order { get; set; }
     }
 }
