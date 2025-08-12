@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using OrderAPI.DataBase;
 using OrderAPI.Models;
 using OrderAPI.Services;
 
@@ -11,6 +13,8 @@ builder.Services.AddSingleton<IRabbitMQService, RabbitMQService>();
 builder.Services.Configure<RabbitMQSettings>(
     builder.Configuration.GetSection("RabbitMQ")
 );
+builder.Services.AddDbContextFactory<AppDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 var app = builder.Build();
 
 app.UseSwagger();

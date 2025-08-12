@@ -1,18 +1,17 @@
-﻿using OrderAPI.Enum;
-using System.Text.Json.Serialization;
+﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using OrderAPI.Enum;
 
 namespace OrderAPI.Models
 {
     public class Order
     {
-        [JsonIgnore]
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int OrderId { get; set; }
+
         public int Value { get; set; }
         public string Customer { get; set; }
-
-        [JsonIgnore]
         public OrderStatus Status { get; set; }
-
     }
-
 }
