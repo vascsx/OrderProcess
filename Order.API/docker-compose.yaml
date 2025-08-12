@@ -6,13 +6,77 @@ services:
     container_name: rabbitmq
     ports:
       - "5672:5672"     
-      - "15672:15672"   
+      - "15672:15672"    
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver
+    ports:
+      - "1200:1433"      
+    environment:
+      SA_PASSWORD: "YourStrong!Passw0rd"
+      ACCEPT_EULA: "Y"
+    volumes:
+      - sql_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P YourStrong!Passw0rd -Q 'SELECT 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - app-network
+
+  api:
+    build: .
+    container_name: api
+    ports:
+      - "5200:5200"                   
+    environment:
+      - RabbitMQSettings__HostName=localhost
+      - RabbitMQSettings__UserName=guest
+      - RabbitMQSettings__Password=guest
+      - RabbitMQSettings__QueueName=order.process
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=OrderDB;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  microservice:
+    build: ../ProcessOrder 
+    container_name: microservice
+    ports:
+      - "6000:6000"                        
+    environment:
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=OrderDB;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True
+      - RabbitMQSettings__HostName=rabbitmq
+      - RabbitMQSettings__UserName=guest
+      - RabbitMQSettings__Password=guest
+      - RabbitMQSettings__QueueName=order.process
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      sqlserver:
+        condition: service_healthy
     networks:
       - app-network
 
 networks:
   app-network:
     driver: bridge
+
+volumes:
+  sql_data:

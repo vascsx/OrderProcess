@@ -1,12 +1,15 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ProcessOrder.DataBase;
+using ProcessOrder.Enum;
 using ProcessOrder.Models;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
-using System.Runtime;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace ProcessOrder
 {
@@ -14,13 +17,15 @@ namespace ProcessOrder
     {
         private readonly ILogger<Worker> _logger;
         private readonly RabbitMQSettings _settings;
+        private readonly IDbContextFactory<AppDbContext> _contextFactory;
         private IConnection _connection;
         private IModel _channel;
 
-        public Worker(ILogger<Worker> logger, IOptions<RabbitMQSettings> options)
+        public Worker(ILogger<Worker> logger, IOptions<RabbitMQSettings> options, IDbContextFactory<AppDbContext> contextFactory)
         {
             _logger = logger;
             _settings = options.Value;
+            _contextFactory = contextFactory;
 
             var factory = new ConnectionFactory()
             {
@@ -37,18 +42,29 @@ namespace ProcessOrder
         {
             var consumer = new EventingBasicConsumer(_channel);
 
-            consumer.Received += (model, ea) =>
+            consumer.Received += async (model, ea) =>
             {
                 try
                 {
                     var body = ea.Body.ToArray();
                     var message = Encoding.UTF8.GetString(body);
-
                     var order = JsonSerializer.Deserialize<Order>(message);
 
                     _logger.LogInformation($"Pedido recebido: ID={order.OrderId}, Customer={order.Customer}, Value={order.Value}");
 
-                    _channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);
+                    using var db = _contextFactory.CreateDbContext();
+
+                    var log = new OrderLog
+                    {
+                        OrderId = order.OrderId,
+                        SentAt = DateTime.Now,
+                        Status = OrderStatus.Sent
+                    };
+
+                    db.OrderLogs.Add(log);
+                    await db.SaveChangesAsync();
+
+                    _channel.BasicAck(ea.DeliveryTag, false);
                 }
                 catch (Exception ex)
                 {
