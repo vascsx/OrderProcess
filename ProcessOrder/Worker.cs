@@ -3,42 +3,48 @@ using Microsoft.Extensions.Options;
 using ProcessOrder.DataBase;
 using ProcessOrder.Enum;
 using ProcessOrder.Models;
+using ProcessOrder.Services;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace ProcessOrder
 {
     public class Worker : BackgroundService
     {
         private readonly ILogger<Worker> _logger;
-        private readonly RabbitMQSettings _settings;
+        private readonly IRabbitMQService _rabbitMQService;
         private readonly IDbContextFactory<AppDbContext> _contextFactory;
         private IConnection _connection;
         private IModel _channel;
+        private RabbitMQSettings _settings;
 
-        public Worker(ILogger<Worker> logger, IOptions<RabbitMQSettings> options, IDbContextFactory<AppDbContext> contextFactory)
+        public Worker(
+            ILogger<Worker> logger,
+            IRabbitMQService rabbitMQService,
+            IOptions<RabbitMQSettings> options,
+            IDbContextFactory<AppDbContext> contextFactory)
         {
             _logger = logger;
-            _settings = options.Value;
+            _rabbitMQService = rabbitMQService;
             _contextFactory = contextFactory;
-
-            var factory = new ConnectionFactory()
-            {
-                HostName = _settings.HostName,
-                UserName = _settings.UserName,
-                Password = _settings.Password
-            };
-
-            _connection = factory.CreateConnection();
-            _channel = _connection.CreateModel();
+            _settings = options.Value;
         }
 
         protected override Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            var consumer = new EventingBasicConsumer(_channel);
+            _connection = _rabbitMQService.GetConnection();
+            _channel = _connection.CreateModel();
+
+            _channel.QueueDeclare(
+                queue: _settings.QueueName,
+                durable: true,
+                exclusive: false,
+                autoDelete: false,
+                arguments: null);
+
+            var consumer = new AsyncEventingBasicConsumer(_channel);
 
             consumer.Received += async (model, ea) =>
             {
@@ -48,23 +54,24 @@ namespace ProcessOrder
                     var message = Encoding.UTF8.GetString(body);
                     var order = JsonSerializer.Deserialize<Order>(message);
 
-                    _logger.LogInformation($"O Pedido recebido: ID={order.OrderId}, Customer={order.Customer}, Value={order.Value}");
+                    _logger.LogInformation($"Pedido recebido: ID={order.Id}, Customer={order.CustomerName}, Value={order.Value}");
 
                     using var db = _contextFactory.CreateDbContext();
 
-                    var orderToUpdate = await db.Order.FindAsync(order.OrderId);
+                    var orderToUpdate = await db.Order.FindAsync(order.Id);
 
                     if (orderToUpdate != null)
                     {
-                        orderToUpdate.Status = OrderStatus.Processed;
+                        orderToUpdate.OrderStatus = OrderStatus.Processed;
+                        orderToUpdate.UpdatedAt = DateTime.Now;
 
                         await db.SaveChangesAsync();
 
-                        _logger.LogInformation($"Pedido {order.OrderId} Processado");
+                        _logger.LogInformation($"Pedido {order.Id} processado");
                     }
                     else
                     {
-                        _logger.LogWarning($"Pedido {order.OrderId} não encontrado no banco.");
+                        _logger.LogWarning($"Pedido {order.Id} não encontrado no banco.");
                     }
 
                     _channel.BasicAck(ea.DeliveryTag, false);
@@ -76,19 +83,12 @@ namespace ProcessOrder
                 }
             };
 
-
-            _channel.BasicConsume(queue: _settings.QueueName,
-                                  autoAck: false,
-                                  consumer: consumer);
+            _channel.BasicConsume(
+                queue: _settings.QueueName,
+                autoAck: false,
+                consumer: consumer);
 
             return Task.CompletedTask;
-        }
-
-        public override void Dispose()
-        {
-            _channel?.Close();
-            _connection?.Close();
-            base.Dispose();
         }
     }
 }

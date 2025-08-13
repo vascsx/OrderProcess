@@ -1,5 +1,4 @@
-﻿using System;
-using System.Net.Sockets;
+﻿using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
@@ -19,6 +18,8 @@ namespace OrderAPI.Services
         private IConnection _connection;
         private bool _disposed;
         private readonly object _connectionLock = new();
+
+        public RabbitMQSettings Settings => _settings;
 
         public RabbitMQService(IOptions<RabbitMQSettings> options, ILogger<RabbitMQService> logger)
         {
@@ -50,16 +51,16 @@ namespace OrderAPI.Services
                         var factory = new ConnectionFactory
                         {
                             HostName = _settings.HostName,
-                            Port = 5672, 
+                            Port = 5672,
                             UserName = _settings.UserName,
                             Password = _settings.Password,
                             VirtualHost = "/",
                             DispatchConsumersAsync = true,
                             AutomaticRecoveryEnabled = true,
                             NetworkRecoveryInterval = TimeSpan.FromSeconds(30),
-                            RequestedConnectionTimeout = TimeSpan.FromSeconds(60), 
-                            ContinuationTimeout = TimeSpan.FromSeconds(60), 
-                            HandshakeContinuationTimeout = TimeSpan.FromSeconds(60) 
+                            RequestedConnectionTimeout = TimeSpan.FromSeconds(60),
+                            ContinuationTimeout = TimeSpan.FromSeconds(60),
+                            HandshakeContinuationTimeout = TimeSpan.FromSeconds(60)
                         };
 
                         _connection?.Dispose();
@@ -78,7 +79,6 @@ namespace OrderAPI.Services
             }
         }
 
-
         private void OnConnectionShutdown(object sender, ShutdownEventArgs e)
         {
             _logger.LogWarning("RabbitMQ connection shutdown: {ReplyText}", e.ReplyText);
@@ -92,6 +92,12 @@ namespace OrderAPI.Services
             {
                 _logger.LogError(ex, "Failed to reconnect to RabbitMQ after shutdown");
             }
+        }
+
+        public IConnection GetConnection()
+        {
+            EnsureConnection();
+            return _connection;
         }
 
         public void Publish(Order order)
