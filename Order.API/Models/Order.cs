@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 using OrderAPI.Enum;
 
 namespace OrderAPI.Models
@@ -25,10 +26,12 @@ namespace OrderAPI.Models
         public OrderStatus OrderStatus { get; set; } = OrderStatus.Created;
 
         [Column(TypeName = "datetime2")]
+        [JsonIgnore]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public DateTime CreatedAt { get; set; }
 
         [Column(TypeName = "datetime2")]
+        [JsonIgnore]
         public DateTime UpdatedAt { get; set; }
         public Order()
         {

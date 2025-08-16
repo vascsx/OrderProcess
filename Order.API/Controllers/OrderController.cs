@@ -31,7 +31,7 @@ namespace OrderAPI.Controllers
         {
             var order = new Order
             {
-                CustomerName = request.Customer,
+                CustomerName = request.CustomerName,
                 Value = request.Value,
                 OrderStatus = OrderStatus.Created,
             };
@@ -61,6 +61,35 @@ namespace OrderAPI.Controllers
                 message = "Pedido criado com sucesso!",
                 orderId = order.Id
             });
+        }
+
+        [HttpGet("{orderId}/status/{status}")]
+        public async Task<IActionResult> GetByOrderIdByStatus(int orderId, OrderStatus status)
+        {
+            try
+            {
+                var order = await _db.Order.FindAsync(orderId);
+
+                if (order == null)
+                    return NotFound(new { message = $"Pedido {orderId} não encontrado." });
+
+                if (order.OrderStatus != status)
+                    return BadRequest(new { message = $"O pedido {orderId} existe, mas o status atual é '{order.OrderStatus}' e não '{status}'." });
+
+                return Ok(new
+                {
+                    message = "Pedido encontrado com sucesso!",
+                    orderId = order.Id,
+                    customer = order.CustomerName,
+                    value = order.Value,
+                    status = order.OrderStatus.ToString()
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Erro ao buscar pedido {orderId} por status");
+                return StatusCode(500, new { message = "Erro interno ao buscar pedido" });
+            }
         }
 
         private string? ValidateOrder(Order order)
