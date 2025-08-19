@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OrderAPI.Models
+namespace OrderAPI.Entities
 {
     public class ApiResponse<T>
     {
