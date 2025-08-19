@@ -122,12 +122,12 @@ public class OrderController : ControllerBase
         catch (JsonException ex) when (ex.Path != null)
         {
             string fieldName = ex.Path.Split('.').Last();
-            string errorMsg = GetFieldSpecificErrorMessage(fieldName, ex.Message);
+            var errorMsgs = GetFieldSpecificErrorMessage(fieldName, ex.Message);
 
             return (false, null, ApiResponse<OrderResponse>.Error(
                 "Erro de validação",
                 "INVALID_FIELD",
-                new[] { errorMsg }));
+                errorMsgs.ToArray())); 
         }
         catch (JsonException ex)
         {
@@ -145,17 +145,26 @@ public class OrderController : ControllerBase
         }
     }
 
-    private string GetFieldSpecificErrorMessage(string fieldName, string originalMessage)
+    private List<string> GetFieldSpecificErrorMessage(string fieldName, string originalMessage)
     {
         return fieldName switch
         {
-            nameof(CreateOrderRequest.CustomerName) =>
-                "O campo 'CustomerName' deve ser uma string válida",
-            nameof(CreateOrderRequest.Value) =>
-                "O campo 'Value' deve ser um número decimal positivo",
-            _ => $"Erro no campo '{fieldName}': {originalMessage}"
+            nameof(CreateOrderRequest.CustomerName) => new List<string>
+        {
+            "O campo 'CustomerName' deve ser uma string válida",
+            originalMessage
+        },
+            nameof(CreateOrderRequest.Value) => new List<string>
+        {
+            "O campo 'Value' deve ser um número decimal positivo",
+            originalMessage
+        },
+            _ => new List<string> { $"Erro no campo '{fieldName}': {originalMessage}" }
         };
     }
+
+
+
 
     private async Task<Order> CreateAndSaveOrder(CreateOrderRequest request)
     {
