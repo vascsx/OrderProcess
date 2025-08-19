@@ -1,7 +1,10 @@
 ﻿
 using OrderAPI.Models;
+using RabbitMQ.Client;
 
-public interface IRabbitMQService
+public interface IRabbitMQService : IDisposable
 {
-    void Publish(Order order);
+    RabbitMQSettings Settings { get; }
+    Task<IConnection> GetConnectionAsync();
+    Task PublishAsync(Order order); 
 }

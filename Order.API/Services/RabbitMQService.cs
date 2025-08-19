@@ -17,7 +17,7 @@ namespace OrderAPI.Services
         private readonly AsyncRetryPolicy _retryPolicy;
         private IConnection _connection;
         private bool _disposed;
-        private readonly object _connectionLock = new();
+        private readonly SemaphoreSlim _connectionLock = new(1, 1);
 
         public RabbitMQSettings Settings => _settings;
 
@@ -33,80 +33,79 @@ namespace OrderAPI.Services
                     retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
                     (ex, time) => _logger.LogWarning(ex, "Failed to connect to RabbitMQ. Retrying in {TimeTotalSeconds}s...", time.TotalSeconds));
 
-            EnsureConnection();
+            _ = InitializeConnectionAsync();
         }
 
-        private void EnsureConnection()
+        private async Task InitializeConnectionAsync()
         {
-            if (_connection?.IsOpen == true) return;
-
-            lock (_connectionLock)
-            {
-                if (_connection?.IsOpen == true) return;
-
-                _retryPolicy.ExecuteAsync(async () =>
-                {
-                    try
-                    {
-                        var factory = new ConnectionFactory
-                        {
-                            HostName = _settings.HostName,
-                            Port = 5672,
-                            UserName = _settings.UserName,
-                            Password = _settings.Password,
-                            VirtualHost = "/",
-                            DispatchConsumersAsync = true,
-                            AutomaticRecoveryEnabled = true,
-                            NetworkRecoveryInterval = TimeSpan.FromSeconds(30),
-                            RequestedConnectionTimeout = TimeSpan.FromSeconds(60),
-                            ContinuationTimeout = TimeSpan.FromSeconds(60),
-                            HandshakeContinuationTimeout = TimeSpan.FromSeconds(60)
-                        };
-
-                        _connection?.Dispose();
-                        _connection = factory.CreateConnection();
-                        _connection.ConnectionShutdown += OnConnectionShutdown;
-
-                        _logger.LogInformation("Successfully connected to RabbitMQ");
-                        await Task.CompletedTask;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to create RabbitMQ connection");
-                        throw;
-                    }
-                }).GetAwaiter().GetResult();
-            }
-        }
-
-        private void OnConnectionShutdown(object sender, ShutdownEventArgs e)
-        {
-            _logger.LogWarning("RabbitMQ connection shutdown: {ReplyText}", e.ReplyText);
-            if (_disposed) return;
-
             try
             {
-                EnsureConnection();
+                await EnsureConnectionAsync();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to reconnect to RabbitMQ after shutdown");
+                _logger.LogError(ex, "Failed to initialize RabbitMQ connection");
             }
         }
 
-        public IConnection GetConnection()
+        private async Task EnsureConnectionAsync()
         {
-            EnsureConnection();
+            if (_connection?.IsOpen == true) return;
+
+            await _connectionLock.WaitAsync();
+            try
+            {
+                if (_connection?.IsOpen == true) return;
+
+                await _retryPolicy.ExecuteAsync(async () =>
+                {
+                    var factory = new ConnectionFactory
+                    {
+                        HostName = _settings.HostName,
+                        Port = _settings.Port ?? 5672,
+                        UserName = _settings.UserName,
+                        Password = _settings.Password,
+                        VirtualHost = _settings.VirtualHost ?? "/",
+                        DispatchConsumersAsync = true,
+                        AutomaticRecoveryEnabled = true,
+                        NetworkRecoveryInterval = TimeSpan.FromSeconds(30),
+                        RequestedConnectionTimeout = TimeSpan.FromSeconds(60),
+                        ContinuationTimeout = TimeSpan.FromSeconds(60),
+                        HandshakeContinuationTimeout = TimeSpan.FromSeconds(60)
+                    };
+
+                    _connection?.Dispose();
+                    _connection = factory.CreateConnection();
+
+                    _logger.LogInformation("Successfully connected to RabbitMQ");
+                    await Task.CompletedTask;
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to create RabbitMQ connection");
+                throw;
+            }
+            finally
+            {
+                _connectionLock.Release();
+            }
+        }
+
+        public async Task<IConnection> GetConnectionAsync()
+        {
+            await EnsureConnectionAsync();
             return _connection;
         }
 
-        public void Publish(Order order)
+        public async Task PublishAsync(Order order)
         {
-            EnsureConnection();
+            await EnsureConnectionAsync();
 
+            IModel channel = null;
             try
             {
-                using var channel = _connection.CreateModel();
+                channel = _connection.CreateModel();
                 channel.QueueDeclare(
                     queue: _settings.QueueName,
                     durable: true,
@@ -133,6 +132,16 @@ namespace OrderAPI.Services
                 _logger.LogError(ex, "Error publishing message to RabbitMQ");
                 throw new RabbitMQPublishException("Failed to publish message", ex);
             }
+            finally
+            {
+                channel?.Close();
+                channel?.Dispose();
+            }
+        }
+
+        public void Publish(Order order)
+        {
+            PublishAsync(order).GetAwaiter().GetResult();
         }
 
         public void Dispose()
@@ -144,6 +153,7 @@ namespace OrderAPI.Services
             {
                 _connection?.Close();
                 _connection?.Dispose();
+                _connectionLock.Dispose();
                 _logger.LogInformation("RabbitMQ connection closed");
             }
             catch (Exception ex)
