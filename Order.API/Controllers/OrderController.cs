@@ -16,7 +16,7 @@ public class OrderController : ControllerBase
     private readonly AppDbContext _db;
 
     public OrderController(
-        IRabbitMQService rabbitMQService,
+        IRabbitMQService rabbitMQService, 
         ILogger<OrderController> logger,
         AppDbContext db)
     {
@@ -81,6 +81,10 @@ public class OrderController : ControllerBase
         {
             errors.Add("O campo 'CustomerName' deve ser uma string válida");
         }
+        else if (string.IsNullOrWhiteSpace(customerNameToken.ToString()))
+        {
+            errors.Add("O campo 'CustomerName' não pode estar vazio");
+        }
 
         if (!requestBody.TryGetValue("Value", out var valueToken) || valueToken.Type == JTokenType.Null)
         {
@@ -93,6 +97,10 @@ public class OrderController : ControllerBase
         else if (value <= 0)
         {
             errors.Add("O valor deve ser maior que zero");
+        }
+        else if (string.IsNullOrWhiteSpace(value.ToString()))
+        {
+            errors.Add("O campo 'Value' não pode estar vazio");
         }
 
         if (errors.Any())
