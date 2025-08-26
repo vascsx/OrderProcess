@@ -65,6 +65,39 @@ public class OrderController : ControllerBase
         }
     }
 
+    [HttpGet("{orderId}/status/{status}")]
+    public async Task<ActionResult<ApiResponse<OrderResponse>>> GetOrderStatus(int orderId, OrderStatus status)
+    {
+        try
+        {
+            var order = await _db.Order.FindAsync(orderId);
+
+            if (order == null)
+            {
+                return NotFound(ApiResponse<OrderResponse>.Error(
+                    $"Pedido {orderId} não encontrado",
+                    "NOT_FOUND"));
+            }
+
+            if (order.OrderStatus != status)
+            {
+                return BadRequest(ApiResponse<OrderResponse>.Error(
+                    $"Status incorreto. Atual: {order.OrderStatus}, Informado: {status}",
+                    "STATUS_MISMATCH"));
+            }
+
+            return Ok(ApiResponse<OrderResponse>.Success(
+                new OrderResponse(order.Id, order.CustomerName, order.Value, order.OrderStatus),
+                "Pedido encontrado com sucesso"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Erro ao buscar pedido {orderId} com status {status}");
+            return StatusCode(500, ApiResponse<OrderResponse>.Error(
+                "Erro interno ao buscar pedido",
+                "SERVER_ERROR"));
+        }
+    }
 
     #region Private Methods
 
